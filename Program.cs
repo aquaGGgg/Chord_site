@@ -2,8 +2,22 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Chords_site.Services;
 using System.Text;
+using Chords_site.Data;
+using Chords_site.Data;
+using Microsoft.EntityFrameworkCore;
+using SQLitePCL;
+
+
+
 
 var builder = WebApplication.CreateBuilder(args);
+
+Batteries.Init();
+
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -25,6 +39,8 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
+
+
 
 // Добавление вашего сервиса JWT
 builder.Services.AddSingleton<JwtService>(new JwtService("YourSecretKey", "YourRefreshSecretKey", 15, 7));

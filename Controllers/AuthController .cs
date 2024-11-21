@@ -3,6 +3,11 @@ using Chords_site.Models;
 using Chords_site.Services;
 using Microsoft.AspNetCore.Identity.Data;
 using RefreshRequestModel = Chords_site.Models.RefreshRequest;
+using Chords_site.Data;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
+
 
 namespace Chords_site.Controllers
 {
@@ -22,29 +27,39 @@ namespace Chords_site.Controllers
         }
 
         [HttpPost("register")]
-        public IActionResult Register([FromBody] UserRegistration model)
+        public async Task<IActionResult> Register([FromBody] UserRegistration model, [FromServices] AppDbContext dbContext)
         {
-            if (Users.ContainsKey(model.Email))
+            if (await dbContext.Users.AnyAsync(u => u.Email == model.Email))
                 return BadRequest("User already exists.");
 
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
-            Users[model.Email] = passwordHash;
+
+            var user = new User
+            {
+                Username = model.Username,
+                Email = model.Email,
+                PasswordHash = passwordHash
+            };
+
+            dbContext.Users.Add(user);
+            await dbContext.SaveChangesAsync();
 
             return Ok("User registered successfully.");
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] UserLogin model)
+        public async Task<IActionResult> Login([FromBody] UserLogin model, [FromServices] AppDbContext dbContext)
         {
-            if (!Users.ContainsKey(model.Email) || !BCrypt.Net.BCrypt.Verify(model.Password, Users[model.Email]))
+            var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
+
+            if (user == null || !BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
                 return Unauthorized("Invalid email or password.");
 
-            var userId = Guid.NewGuid(); // Replace with real user ID
-            var accessToken = _jwtService.GenerateAccessToken(userId, "User");
+            var accessToken = _jwtService.GenerateAccessToken(user.Id, "User");
             var refreshToken = _jwtService.GenerateRefreshToken();
 
-            // Save the refresh token
-            RefreshTokens[refreshToken] = model.Email;
+            // You may want to store refresh tokens in a database instead
+            RefreshTokens[refreshToken] = user.Email;
 
             return Ok(new AuthResponse
             {
